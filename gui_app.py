@@ -17,20 +17,25 @@ from query_package import FamilyMartPackageQuery
 class PackageQueryApp:
     """全家包裹查詢 GUI 應用程式"""
     
+    MAX_TRACKING_NUMBERS = 5
+    
     def __init__(self, root):
         self.root = root
         self.root.title("全家便利商店包裹查詢")
-        self.root.geometry("700x600")
+        self.root.geometry("600x550")
         self.root.resizable(True, True)
         
         # 設定最小視窗大小
-        self.root.minsize(500, 400)
+        self.root.minsize(450, 450)
         
         # 訊息佇列（用於執行緒間通訊）
         self.message_queue = queue.Queue()
         
         # 查詢狀態
         self.is_querying = False
+        
+        # 輸入欄位列表
+        self.entry_fields = []
         
         # 設定樣式
         self._setup_styles()
@@ -59,6 +64,8 @@ class PackageQueryApp:
                        font=('Microsoft JhengHei', 16, 'bold'))
         style.configure('Status.TLabel',
                        font=('Microsoft JhengHei', 10))
+        style.configure('Input.TLabel',
+                       font=('Microsoft JhengHei', 10))
     
     def _create_widgets(self):
         """建立介面元件"""
@@ -73,17 +80,21 @@ class PackageQueryApp:
         title_label.pack(pady=(0, 15))
         
         # 輸入區框架
-        input_frame = ttk.LabelFrame(main_frame, text="包裹編號（每行一個）", padding="10")
+        input_frame = ttk.LabelFrame(main_frame, text="包裹編號（最多 5 個）", padding="10")
         input_frame.pack(fill=tk.X, pady=(0, 10))
         
-        # 輸入文字框
-        self.input_text = scrolledtext.ScrolledText(
-            input_frame, 
-            height=5, 
-            font=('Consolas', 11),
-            wrap=tk.WORD
-        )
-        self.input_text.pack(fill=tk.X, expand=True)
+        # 建立 5 個輸入欄位
+        for i in range(self.MAX_TRACKING_NUMBERS):
+            row_frame = ttk.Frame(input_frame)
+            row_frame.pack(fill=tk.X, pady=3)
+            
+            label = ttk.Label(row_frame, text=f"包裹 {i+1}:", style='Input.TLabel', width=8)
+            label.pack(side=tk.LEFT, padx=(0, 5))
+            
+            entry = ttk.Entry(row_frame, font=('Consolas', 11))
+            entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
+            
+            self.entry_fields.append(entry)
         
         # 按鈕框架
         button_frame = ttk.Frame(main_frame)
@@ -123,7 +134,7 @@ class PackageQueryApp:
         # 結果文字框
         self.result_text = scrolledtext.ScrolledText(
             result_frame,
-            height=15,
+            height=12,
             font=('Microsoft JhengHei', 10),
             wrap=tk.WORD,
             state=tk.DISABLED
@@ -149,6 +160,15 @@ class PackageQueryApp:
         )
         self.progress.pack(fill=tk.X, pady=(5, 0))
     
+    def _get_tracking_numbers(self):
+        """取得所有非空的包裹編號"""
+        numbers = []
+        for entry in self.entry_fields:
+            value = entry.get().strip()
+            if value:
+                numbers.append(value)
+        return numbers
+    
     def _start_query(self):
         """開始查詢"""
         if self.is_querying:
@@ -156,20 +176,10 @@ class PackageQueryApp:
             return
         
         # 取得包裹編號
-        input_text = self.input_text.get("1.0", tk.END).strip()
-        if not input_text:
-            messagebox.showwarning("提示", "請輸入至少一個包裹編號")
-            return
-        
-        # 解析包裹編號
-        tracking_numbers = [
-            line.strip() 
-            for line in input_text.split('\n') 
-            if line.strip()
-        ]
+        tracking_numbers = self._get_tracking_numbers()
         
         if not tracking_numbers:
-            messagebox.showwarning("提示", "請輸入有效的包裹編號")
+            messagebox.showwarning("提示", "請輸入至少一個包裹編號")
             return
         
         # 開始查詢
@@ -258,7 +268,8 @@ class PackageQueryApp:
     
     def _clear_all(self):
         """清除所有內容"""
-        self.input_text.delete("1.0", tk.END)
+        for entry in self.entry_fields:
+            entry.delete(0, tk.END)
         self._append_result("", clear=True)
         self.status_var.set("就緒")
     
