@@ -9,6 +9,8 @@ from tkinter import ttk, messagebox, scrolledtext
 import threading
 import queue
 from datetime import datetime
+from pathlib import Path
+import yaml
 
 # 導入查詢邏輯
 from query_package import FamilyMartPackageQuery
@@ -18,6 +20,7 @@ class PackageQueryApp:
     """全家包裹查詢 GUI 應用程式"""
     
     MAX_TRACKING_NUMBERS = 5
+    CONFIG_FILE = "config.yaml"
     
     def __init__(self, root):
         self.root = root
@@ -42,6 +45,9 @@ class PackageQueryApp:
         
         # 建立介面
         self._create_widgets()
+        
+        # 從設定檔載入包裹編號
+        self._load_config()
         
         # 開始檢查訊息佇列
         self._check_queue()
@@ -160,6 +166,75 @@ class PackageQueryApp:
         )
         self.progress.pack(fill=tk.X, pady=(5, 0))
     
+    def _get_config_path(self):
+        """取得設定檔路徑"""
+        # 取得程式所在目錄
+        import sys
+        if getattr(sys, 'frozen', False):
+            # 打包後的 exe
+            app_dir = Path(sys.executable).parent
+        else:
+            # 一般 Python 執行
+            app_dir = Path(__file__).parent
+        return app_dir / self.CONFIG_FILE
+    
+    def _load_config(self):
+        """從設定檔載入包裹編號"""
+        config_path = self._get_config_path()
+        
+        if not config_path.exists():
+            self.status_var.set("設定檔不存在，將建立新設定檔")
+            return
+        
+        try:
+            with open(config_path, 'r', encoding='utf-8') as f:
+                config = yaml.safe_load(f) or {}
+            
+            tracking_numbers = config.get('tracking_numbers', [])
+            
+            # 填入輸入欄位
+            for i, entry in enumerate(self.entry_fields):
+                if i < len(tracking_numbers):
+                    value = tracking_numbers[i]
+                    # 過濾掉範例值
+                    if value and not value.startswith('YOUR_'):
+                        entry.insert(0, value)
+            
+            self.status_var.set("已從設定檔載入包裹編號")
+            
+        except Exception as e:
+            self.status_var.set(f"載入設定檔失敗: {e}")
+    
+    def _save_config(self):
+        """將包裹編號保存到設定檔"""
+        config_path = self._get_config_path()
+        
+        # 讀取現有設定
+        config = {}
+        if config_path.exists():
+            try:
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    config = yaml.safe_load(f) or {}
+            except:
+                pass
+        
+        # 更新包裹編號
+        tracking_numbers = self._get_tracking_numbers()
+        config['tracking_numbers'] = tracking_numbers if tracking_numbers else ['']
+        
+        # 確保其他設定存在
+        if 'max_retries' not in config:
+            config['max_retries'] = 5
+        
+        # 寫入設定檔
+        try:
+            with open(config_path, 'w', encoding='utf-8') as f:
+                yaml.dump(config, f, allow_unicode=True, default_flow_style=False)
+            return True
+        except Exception as e:
+            self.status_var.set(f"保存設定檔失敗: {e}")
+            return False
+    
     def _get_tracking_numbers(self):
         """取得所有非空的包裹編號"""
         numbers = []
@@ -181,6 +256,9 @@ class PackageQueryApp:
         if not tracking_numbers:
             messagebox.showwarning("提示", "請輸入至少一個包裹編號")
             return
+        
+        # 保存到設定檔
+        self._save_config()
         
         # 開始查詢
         self.is_querying = True
@@ -272,6 +350,8 @@ class PackageQueryApp:
             entry.delete(0, tk.END)
         self._append_result("", clear=True)
         self.status_var.set("就緒")
+        # 清除後也保存設定檔
+        self._save_config()
     
     def _copy_results(self):
         """複製結果到剪貼簿"""
