@@ -18,8 +18,13 @@ import ddddocr
 import yaml
 import time
 import re
+import argparse
+import shutil
 from typing import List, Dict, Optional
 from pathlib import Path
+
+# 版本號
+VERSION = "0.03"
 
 
 class FamilyMartPackageQuery:
@@ -306,8 +311,111 @@ def load_config(config_path: str = "config.yaml") -> dict:
         return yaml.safe_load(f)
 
 
+def generate_requirements():
+    """產生 requirements.txt 檔案"""
+    requirements = [
+        "requests>=2.28.0",
+        "beautifulsoup4>=4.11.0",
+        "ddddocr>=1.4.0",
+        "pyyaml>=6.0",
+    ]
+    
+    req_path = Path("requirements.txt")
+    with open(req_path, 'w', encoding='utf-8') as f:
+        f.write('\n'.join(requirements) + '\n')
+    
+    print(f"✅ 已產生 requirements.txt")
+    print(f"   路徑: {req_path.absolute()}")
+    print(f"   套件數量: {len(requirements)}")
+
+
+def clean_generated_files():
+    """清除所有產生的檔案"""
+    files_to_clean = [
+        "result.txt",
+        "debug_result.json",
+    ]
+    
+    dirs_to_clean = [
+        "__pycache__",
+    ]
+    
+    deleted_count = 0
+    
+    for file in files_to_clean:
+        file_path = Path(file)
+        if file_path.exists():
+            file_path.unlink()
+            print(f"🗑️  已刪除: {file}")
+            deleted_count += 1
+    
+    for dir_name in dirs_to_clean:
+        dir_path = Path(dir_name)
+        if dir_path.exists():
+            shutil.rmtree(dir_path)
+            print(f"🗑️  已刪除目錄: {dir_name}")
+            deleted_count += 1
+    
+    if deleted_count == 0:
+        print("ℹ️  沒有需要清除的檔案")
+    else:
+        print(f"\n✅ 共清除 {deleted_count} 個項目")
+
+
+def parse_args():
+    """解析命令列參數"""
+    parser = argparse.ArgumentParser(
+        description="全家便利商店包裹查詢程式",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+範例:
+  uv run query_package.py           # 執行查詢
+  uv run query_package.py -r        # 產生 requirements.txt
+  uv run query_package.py -c        # 清除產生的檔案
+  uv run query_package.py -v        # 顯示版本
+        """
+    )
+    
+    parser.add_argument(
+        '-r', '--requirements',
+        action='store_true',
+        help='產生 requirements.txt 檔案'
+    )
+    
+    parser.add_argument(
+        '-c', '--clean',
+        action='store_true',
+        help='清除產生的檔案 (result.txt, debug_result.json, __pycache__)'
+    )
+    
+    parser.add_argument(
+        '-v', '--version',
+        action='store_true',
+        help='顯示版本資訊'
+    )
+    
+    return parser.parse_args()
+
+
 def main():
     """主程式"""
+    args = parse_args()
+    
+    # 處理 -v 顯示版本
+    if args.version:
+        print(f"全家便利商店包裹查詢程式 v{VERSION}")
+        return
+    
+    # 處理 -r 產生 requirements.txt
+    if args.requirements:
+        generate_requirements()
+        return
+    
+    # 處理 -c 清除產生的檔案
+    if args.clean:
+        clean_generated_files()
+        return
+    
     # 載入設定
     config = load_config()
     
